@@ -1,6 +1,5 @@
 import re
 import os
-import sys
 from bs4 import BeautifulSoup
 from collections import defaultdict
 import re
@@ -42,23 +41,29 @@ combined_minify_patterns=combine_patterns(
 
 minify_javascript=lambda code:combined_re_sub(code,combined_minify_patterns)      
 
+def add_exports(exportlist,exports):
+  for item in exportlist.split(','):
+    name,*alias=item.split('as')
+    alias=alias[0] if alias else name
+    exports[alias.strip()]=name.strip()
+  return ''
 
 def convert_es6_to_iife(content, module_filename=None, minify=False):
   imports={}
-  import_pattern = r'(?=^|;)\s*(import\s+(?:(?:(?:(?P<default_import>\w+)(?:[,]|\s)\s*)?(?:(?P<destructuring>\{[^}]*\}\s)|(?:\*\s+as\s+(?P<module_alias>\w+))\s)?)\s*from\s+)?[\'"](?P<module_path>[^"\']+)[\'"]\s*;?)'
+  import_pattern = r'(?=^|;)\s*(import\s+(?:(?:(?:(?P<default_import>\w+)(?:[,]|\s)\s*)?(?:(?P<import_group>\{[^}]*\}\s)|(?:\*\s+as\s+(?P<module_alias>\w+))\s)?)\s*from\s+)?[\'"](?P<module_path>[^"\']+)[\'"]\s*;?)'
   
   def import_callback(match):
       groupdict=match.groupdict()
       default_import=groupdict['default_import'] # these are the named groups in the regular expression
-      destructuring=groupdict['destructuring']
+      import_group=groupdict['import_group']
       module_alias=groupdict['module_alias']
       module_path=groupdict['module_path'].strip()
       module_filename=os.path.basename(module_path)
       imports[module_filename]=module_path
       result=[]
-      if destructuring:
-        destructuring=re.sub(r'(\w+)\s*as\s*(\w+)',r'\1 : \2',destructuring.strip()) #replace 'as' with ':'
-        result.append(f'let {destructuring.strip()} = modules["{module_filename}"];')
+      if import_group:
+        import_group=re.sub(r'(\w+)\s*as\s*(\w+)',r'\1 : \2',import_group.strip()) #replace 'as' with ':'
+        result.append(f'let {import_group.strip()} = modules["{module_filename}"];')
       if module_alias:result.append(f'let {module_alias.strip()} = modules["{module_filename}"];')
       if default_import:result.append(f'let {default_import.strip()} = modules["{module_filename}"].default;')
       return '\n'.join(result)
@@ -70,7 +75,7 @@ def convert_es6_to_iife(content, module_filename=None, minify=False):
       groupdict=match.groupdict()
       export_type=groupdict['export_type']
       export_name=groupdict['export_name'].strip()
-      exports[export_name]=export_name
+      exports[export_name]=export_name # possibly add alias syntax later
       if groupdict['export_default']:
         exports['default']=export_name;
       if export_type:
@@ -78,7 +83,7 @@ def convert_es6_to_iife(content, module_filename=None, minify=False):
       else:
         return ''
       
-  # here we arse parsing for import and export patterns.
+  # here we are parsing for import and export patterns.
   # strings and comment patterns are detected simultaneously, thus preventing the detection of 
   # import/export patterns inside of strings and comments
   combined_es6_to_iife_patterns=combine_patterns(
@@ -88,6 +93,7 @@ def convert_es6_to_iife(content, module_filename=None, minify=False):
       (multiline_comment_pattern, (lambda match:'') if minify else (lambda match:match.group())), #
       (import_pattern,import_callback),#parse import statements, and replace them with equivalent let statements
       (export_pattern,export_callback),#parse export statements, collect export names, remove 'export [default]'
+      (r'(?=^|;)\s*(export\s+\{(?P<export_list>[^}]*)\}\s*;?)', lambda match:add_exports(match.group('export_list'), exports) ), # ad-hoc pattern for grouped exports: " export {f1, f2 as g, ...}; "
       )
   
   #the next line does all the work: the souce code is modified by the callback functions, and the
@@ -96,7 +102,7 @@ def convert_es6_to_iife(content, module_filename=None, minify=False):
   content=combined_re_sub(content,combined_es6_to_iife_patterns)
   
   if exports:  # Only add the export object if there are exports
-      iife_wrapper = f'\n(function(global) {{\n{content}\nif(!("modules" in global)){{\n global["modules"]={{}}\n}}\nglobal.modules["{module_filename}"] = {{{",".join(str(key)+":"+str(value) for key,value in exports.items())}}} ;\n}})(window);'
+      iife_wrapper = f'\n(function(global) {{\n{content}\nif(!("modules" in global)){{\n global["modules"]={{}}\n}}\nglobal.modules["{module_filename}"] = {{{",".join((str(key)+":"+str(value) if value and (key!=value) else str(key)) for key,value in exports.items())}}} ;\n}})(window);'
   else:
       iife_wrapper = f'\n(function(global) {{\n{content}\n}})(window);'
       
@@ -149,16 +155,13 @@ def process_html(html_path,minify=False,output_file='output.html'):
                 module_dir = os.path.dirname(full_path)
                 module_filename = os.path.basename(full_path)
                 # Gather all dependencies for this module
-                try:
-                  with open(full_path, 'r') as f:
-                      content = f.read()
-                except Exception as e:
-                  print(f'error reading file: {full_path}',file=sys.stderr)
-                  raise e
+                with open(full_path, 'r') as f:
+                    content = f.read()
                 del script['src']  # Remove the src attribute as we've included the content
             else:
                 content=script.string
-                module_filename=None
+                #module_filename=None
+                module_filename=script.get('name')
                 module_dir=os.path.dirname(html_path)
             script['type'] = 'text/javascript'  # Change type to standard JavaScript
             # Insert the converted IIFE content for this module and its dependencies
@@ -181,16 +184,27 @@ def process_html(html_path,minify=False,output_file='output.html'):
 
     with open(output_file, 'w') as file:
         file.write(str(soup))
-
+  
 if __name__ == "__main__":
+#    module_filename='index.js'
+#    print(convert_es6_to_iife(open(module_filename).read(),module_filename=module_filename,minify=False)[0])
+#    raise Exception
     from time import perf_counter
     t1=perf_counter()
-    print(f'{os.getcwd()=}')
+    print(os.getcwd())
     
     html_file = "ripoff.html"
-    output_file='index.html'
-    process_html(html_file,minify=True,output_file=output_file)
+    process_html(html_file,minify=True,output_file='index.html')
     print("HTML processing completed with modules converted to IIFE.")
-    print(f'{output_file=}')
     t2=perf_counter()
-    print(f'{t2-t1=}')	
+    print(f'{t2-t1=}')
+    import webbrowser
+    url='file:/'+os.getcwd()+'/index.html'
+    webbrowser.open(url)
+'''    
+    os.chdir("/private/var/mobile/Containers/Data/Application/77881549-3FA6-4E4B-803F-D53B172FC865/Documents/www")
+    html_file = "webgl-3d-camera-look-at-heads.html"
+    process_html(html_file,minify=True)
+    print("HTML processing completed with modules converted to IIFE.")
+'''
+    

@@ -9,5 +9,5 @@
 
 *  index.html:  The minified stand-alone version of ripoff.html
 
-*  ripoff.py:   The original Python code from https://gist.github.com/GuyCarver/4115763
+*  ripoff.py:   The original Python code from https://gist.github.com/GuyCarver/4115763 (modified to work with Pythonista 3)
   

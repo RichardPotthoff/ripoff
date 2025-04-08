@@ -32,7 +32,7 @@ return buf;}
 genSounds(){this.snds['Laser_6']=this.genTone(700,0.2,0.6,50,20,'sqr');this.snds['Laser_3']=this.genTone(600,0.15,0.3,50,20,'sqr');this.snds['Hit_3']=this.genTone(1000,0.1,1.0,200,50,'sqr');this.snds['Explosion_5']=this.genLayer(0.3,[[100,0.3,0,0,'sine']],0.5);this.snds['Clank']=this.genLayer(0.2,[[200,0.5,150,100,'saw']],0.2);this.snds['Ding_2']=this.genTone(1200,0.1,1.0,300,20,'sine');}
 play(nm){const buf=this.snds[nm];if(!buf) return;const src=this.ctx.createBufferSource();src.buffer=buf;src.connect(this.ctx.destination);src.start(0);}}
 if(!("modules" in global)){global["modules"]={}}
-global.modules["sound.js"]={SoundGen:SoundGen};})(window);(function(global){`
+global.modules["sound.js"]={SoundGen};})(window);(function(global){`
 // ripoff.js
 // Guy Carver's original Python version of "ripoff" was converted 
 // to this javascript version with the help of Grok3.

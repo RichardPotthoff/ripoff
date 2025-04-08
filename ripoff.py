@@ -1,3 +1,4 @@
+#!/bin/env python3
 #----------------------------------------------------------------------
 # Copyright (c) 2012, Guy Carver
 # All rights reserved.
@@ -31,13 +32,16 @@
 # DATE    11/19/2012 06:16 PM
 #----------------------------------------------------------------------
 
-from time import clock
+from __future__ import absolute_import
+from time import perf_counter as clock
 from scene import *
+from _scene_types import Rect,Color,Point #see https://github.com/omz/Pythonista-Issues/issues/150
 from sound import *
 from threading import Thread, Event
 from math import sin, cos, pi, sqrt, acos, hypot, modf
 from random import random, randint, shuffle, uniform, choice
-
+from six.moves import range
+	
 pi2 = pi * 2 #360 deg rotation in radians.
 hpi = pi / 2 #90 deg rotation in radians.
 g_scale = 16 #global scale value for mobs.
@@ -111,11 +115,20 @@ def dot(p1, p2): return p1.x * p2.x + p1.y * p2.y
 ###Center of segment p1-p2.
 def center(p1, p2): return Point(p1.x + p2.x / 2, p1.y + p2.y / 2)
 ###Draw line between 2 points.
-def drawline(p1, p2): line(p1.x, p1.y, p2.x, p2.y)
+#def drawline(p1, p2): line(p1.x, p1.y, p2.x, p2.y)
+import struct
+def drawline(p1, p2): 
+	rect(0,0,0,0) #<- dummy call to get "stroke(color)" to work for "line(...)"
+	l=(p1.x, p1.y, p2.x, p2.y)
+#	if ((max(l)*25)>32000) or ((min(l)*25)<-32000):print(l)
+#	f.write(b''.join([struct.pack('h',int(x*25)) for x in l]))
+	line(*l)
+
 
 def normalize(pnt):
 ###Normalize given Point in place and return the length.
 	len = hypot(pnt.x, pnt.y)
+	if len<1.0: len=1.0 ##
 	pnt.x /= len
 	pnt.y /= len
 	return len
@@ -184,6 +197,7 @@ def rotpoint(a, p):
 
 def clippoint(pnt, bound):
 	###Clip pnt in place to given bound.
+	bound=Rect(*bound) # 'self.scene.bounds' does not have 'left()','right()',... attributes
 	l = bound.left()
 	r = bound.right()
 	t = bound.top()
@@ -199,7 +213,7 @@ class mob(object):
 		self.pos = Point(*pos)
 		self.filter = 0 #Bullet ID.
 		self.scale = g_scale #Scale of the mesh.
-		self.color = Color(.4, .8, 1) #Color of the mesh.
+		self.color = Color(.4, .8, 1, 1) #Color of the mesh.
 		self.mesh = mesh
 		self.points = [Point(*p) for p in mesh[0]] #Make copy of points for transform.
 		self.angle = 0
@@ -280,7 +294,7 @@ class explosion(object):
 			return (Vector3(p0.x,p0.y,0), Point(p1.x, p1.y), Vector3(xv, yv, av))
 
 		#Make list of segments representing exploded mesh.
-		self.segs = [make(i) for i in xrange(numsegs)]
+		self.segs = [make(i) for i in range(numsegs)]
 		set_volume(0.5)
 		play_effect(sounds[3]) #Play explosion mesh.
 
@@ -326,7 +340,7 @@ class crate(mob):
 	###Mob rebresenting a crate the robbers will attempt to steal.
 	def __init__(self, pos, scn):
 		mob.__init__(self, pos, scn, cratemesh)
-		self.color = Color(0.80, 0.80, 0.20)
+		self.color = Color(0.80, 0.80, 0.20,1)
 		self.reset()
 
 	def reset(self):
@@ -350,7 +364,7 @@ class bullet(object):
 		self.owner = owner #Owner of this bullet.
 		self.pos = Point(0,0)
 		self.vel = Point(0,0)
-		self.color = Color(1, 0.7, 0.7)
+		self.color = Color(1, 0.7, 0.7,1)
 		self.life = 0 #Current life of the bullet.
 		self.speed = bulletspeed
 		self.lifespan = 1 #Maximum life span of bullet in seconds.
@@ -403,7 +417,7 @@ class machine(mob):
 		self.brka = pi * 2 #Angular break amount int rads/second.
 		self.shotcount = 0 #Number of shots.
 		#Create bullets.
-		self.bullets = [bullet(self) for i in xrange(bulletcount)]
+		self.bullets = [bullet(self) for i in range(bulletcount)]
 		self.shoot = sounds[0] #Set shooting sound.
 		self.shootv = 0.6 #Shot sound volume.
 
@@ -650,7 +664,7 @@ class killer(aimachine):
 	###Hunter Killer AI machine.
 	def __init__(self, scn):
 		aimachine.__init__(self, scn, killermesh, 2)
-		self.color = Color(1.00, 0.00, 1.00)
+		self.color = Color(1.00, 0.00, 1.00,1)
 		self.shoot = sounds[2]
 		self.downtime = killerdowntime
 		self.state = self.down
@@ -838,14 +852,14 @@ class MyScene(Scene):
 		self.pl = []
 		plr = player(pos, self, 1.0) #Create player 1.
 		self.pl.append(plr)
-		plr.color = Color(1.00, 0.50, 0.00)
+		plr.color = Color(1.00, 0.50, 0.00,1)
 		plr.moverect = Rect(w - w3, 0, w3, w3) #Set movement button rectangle.
 		plr.movepos = plr.moverect.center()
 		plr.shootrect = Rect(w - w6, w3 * 2.25, w6, w3) #Set fire button rectangle.
 		pos.x = w
 		plr = player(pos, self, -1.0) #Create player 2.
 		self.pl.append(plr)
-		plr.color = Color(0.40, 1.00, 0.40)
+		plr.color = Color(0.40, 1.00, 0.40,1)
 		plr.shoot = sounds[1] #Change fire sound for player 2.
 		plr.shootv = 0.3 #Set lower volume.
 		plr.moverect = Rect(0, h - w3, w3, w3) #Set movement button rectangle.
@@ -878,8 +892,8 @@ class MyScene(Scene):
 			cr = crate(Point(cp.x + x, cp.y + y), self)
 			return cr
 
-		self.crates = [makecrate(i) for i in xrange(numcrates)]
-		self.robbers = [robber(self) for i in xrange(robbercount)]
+		self.crates = [makecrate(i) for i in range(numcrates)]
+		self.robbers = [robber(self) for i in range(robbercount)]
 		self.killers = [] #Start with 0 killers.
 		self.numrobbers = 0
 
@@ -966,7 +980,7 @@ class MyScene(Scene):
 			self.udrobbers() #Update robbers.
 			self.uddone.set() #Signal update done.
 
-	def update(self, dt):
+	def update1(self, dt): # called locally from "self.draw" via "self.state=self.run" 
 		###Update the scene.
 		if debug:
 			self.t0 = clock()
@@ -993,7 +1007,7 @@ class MyScene(Scene):
 			self.t1 = clock()
 
 	###Pause state does nothing.
-	def paused(self): pass
+	def paused1(self): pass # called locally from "self.draw()", via "self.state=self.paused1"
 
 	def gameover(self):
 		###Game over state.
@@ -1001,13 +1015,13 @@ class MyScene(Scene):
 		c = self.bounds.center()
 		s = self.gameovertxt[1]
 		image(self.gameovertxt[0], c.x - (s.w / 2), c.y, *s)
-		self.update(self.dt / 4)
+		self.update1(self.dt / 4)
 
 	def run(self):
 		###Main state.
 		dt = min(0.1, self.dt)
 		self.checkwave(dt)
-		self.update(dt)
+		self.update1(dt)
 
 	def drawcontrols(self):
 		###Draw control boxes.
@@ -1027,7 +1041,7 @@ class MyScene(Scene):
 		c = self.bounds.center()
 		s = self.scoretxt[1]
 		image(self.scoretxt[0], c.x - (s.w / 2), self.size.h - s.h, *s)
-		clr = Color(1,1,0) if self.state == self.paused else Color(0.80, 0.40, 1)
+		clr = Color(1,1,0,1) if self.state == self.paused1 else Color(0.80, 0.40, 1,1)
 		if debug: #In debug draw timing text.
 			tmg = int((self.t1 - self.t0) * 1000.0)
 			text(str(tmg), x=20, y=20, alignment=9)
@@ -1059,11 +1073,11 @@ class MyScene(Scene):
 		###Check to see if pause button pressed.
 		if loc in self.pauserect:
 			play_effect(sounds[5])
-			if self.state == self.paused:
+			if self.state == self.paused1:
 				self.state = self.prevstate
 			else:
 				self.prevstate = self.state
-				self.state = self.paused
+				self.state = self.paused1
 
 	def touch_began(self, touch):
 		###Handle touch events.
