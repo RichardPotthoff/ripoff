@@ -1,7 +1,7 @@
 `
-// ripoff.js
-// Guy Carver's original Python version of "ripoff" was converted 
-// to this javascript version with the help of Grok3.
+ ripoff.js
+ Guy Carver's original Python version of "ripoff" was converted 
+ to this JavaScript version with the help of Grok3.
 #----------------------------------------------------------------------
 # Copyright (c) 2012, Guy Carver
 # All rights reserved.
@@ -34,7 +34,7 @@
 # BY      Guy Carver
 # DATE    11/19/2012 06:16 PM
 #----------------------------------------------------------------------
-`
+`;
 
 import { SoundGen } from './sound.js';
 
@@ -666,9 +666,10 @@ class Player extends Machine {
 }
 
 // Scene Class
-class MyScene {
-    constructor(canvas) {
+export class MyScene {
+    constructor(canvas, getScale = () => 1) {
         this.canvas = canvas;
+        this.getScale = getScale;
         this.ctx = canvas.getContext('2d');
         this.size = [canvas.width, canvas.height];
         this.bounds = [0, 0, this.size[0], this.size[1]];
@@ -838,9 +839,10 @@ class MyScene {
         const touchHandler = (e, began) => {
             e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
+            const scale = this.getScale();
             const touches = Array.from(e.touches).map(t => ({
-                x: t.clientX - rect.left,
-                y: t.clientY - rect.top
+                x: (t.clientX - rect.left)*scale,
+                y: (t.clientY - rect.top)*scale
             }));
             this.touches = began ? touches : [];
             touches.forEach(t => {
@@ -864,11 +866,12 @@ class MyScene {
         this.canvas.addEventListener('touchmove', e => {
             e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
+            const scale = this.getScale();
             const touches = Array.from(e.touches).map(t => ({
-                x: t.clientX - rect.left,
-                y: t.clientY - rect.top,
-                prevX: t.clientX - rect.left,
-                prevY: t.clientY - rect.top
+                x: (t.clientX - rect.left)*scale,
+                y: (t.clientY - rect.top)*scale,
+                prevX: (t.clientX - rect.left)*scale,
+                prevY: (t.clientY - rect.top)*scale
             }));
             touches.forEach(t => {
                 for (const p of this.pl) {
@@ -902,9 +905,3 @@ class MyScene {
         requestAnimationFrame(() => this.animate());
     }
 }
-
-// Initialize
-const canvas = document.getElementById('gameCanvas');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-new MyScene(canvas);
